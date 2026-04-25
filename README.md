@@ -26,7 +26,7 @@ A small car powered by an ESP32 and a single 18650 battery, with a custom 3D‑p
 
 ```text
 bluetooth-controlled-solar-esp32-car/
-├── firmware/
+├── code/
 ├── cad/
 ├── images/
 └── README.md
