@@ -2,6 +2,9 @@
 
 A small car powered by an ESP32 and a single 18650 battery, with a custom 3D‑printed chassis, Bluetooth control, and a solar panel to help charge the battery.
 
+<img width="1264" height="843" alt="final_design" src="https://github.com/user-attachments/assets/421f803e-053f-4962-9c76-ca3943ccd9be" />
+
+
 ## Project idea
 
 - ESP32 DevKit V1 handles Bluetooth and car logic  
