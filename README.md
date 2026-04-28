@@ -4,6 +4,7 @@ A small car powered by an ESP32 and a single 18650 battery, with a custom 3D‑p
 
 <img width="1264" height="843" alt="final_design" src="https://github.com/user-attachments/assets/421f803e-053f-4962-9c76-ca3943ccd9be" />
 
+<img width="1536" height="1024" alt="WhatsApp Image 2026-04-23 at 09 39 45" src="https://github.com/user-attachments/assets/29a53cc6-d630-48de-8c6c-d8ecbe1d51aa" />
 
 ## Project idea
 
