@@ -787,7 +787,7 @@
           setStatus('connecting', 'Scanning for ESP32_Car');
 
           bleDevice = await navigator.bluetooth.requestDevice({
-            acceptAllDevices: True,
+            acceptAllDevices: true,
             optionalServices: [SERVICE_UUID],
           });
 
