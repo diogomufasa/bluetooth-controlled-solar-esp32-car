@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>ESP32 Car Controller</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --text-xs: clamp(0.75rem, 0.7rem + 0.25vw, 0.875rem);
+    --text-sm: clamp(0.875rem, 0.8rem + 0.35vw, 1rem);
+    --text-base: clamp(1rem, 0.95rem + 0.25vw, 1.125rem);
+    --text-lg: clamp(1.125rem, 1rem + 0.75vw, 1.5rem);
+    --text-xl: clamp(1.5rem, 1.2rem + 1.25vw, 2.25rem);
+    --space-1: 0.25rem; --space-2: 0.5rem; --space-3: 0.75rem;
+    --space-4: 1rem; --space-6: 1.5rem; --space-8: 2rem;
+    --space-10: 2.5rem; --space-12: 3rem;
+    --radius-sm: 0.375rem; --radius-md: 0.5rem;
+    --radius-lg: 0.75rem; --radius-xl: 1rem; --radius-full: 9999px;
+    --transition: 180ms cubic-bezier(0.16, 1, 0.3, 1);
+    --font-body: 'Inter', system-ui, sans-serif;
+
+    /* Dark theme by default — suits a controller UI */
+    --color-bg: #0e0e10;
+    --color-surface: #161618;
+    --color-surface-2: #1c1c1f;
+    --color-surface-offset: #222226;
+    --color-border: oklch(1 0 0 / 0.08);
+    --color-text: #f0f0f2;
+    --color-text-muted: #8a8a95;
+    --color-text-faint: #444450;
+    --color-primary: #3ecfcf;
+    --color-primary-hover: #2db8b8;
+    --color-primary-active: #1da0a0;
+    --color-primary-bg: oklch(0.7 0.12 192 / 0.12);
+    --color-danger: #f05050;
+    --color-danger-bg: oklch(0.6 0.18 20 / 0.12);
+    --color-success: #4ecb71;
+    --color-success-bg: oklch(0.7 0.15 140 / 0.12);
+    --shadow-sm: 0 1px 3px oklch(0 0 0 / 0.3);
+    --shadow-md: 0 4px 16px oklch(0 0 0 / 0.4);
+    --shadow-btn: 0 2px 8px oklch(0 0 0 / 0.35);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: none; text-size-adjust: none; -webkit-font-smoothing: antialiased; }
+  body {
+    font-family: var(--font-body);
+    font-size: var(--text-base);
+    background: var(--color-bg);
+    color: var(--color-text);
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  /* ── HEADER ── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-4) var(--space-6);
+    background: var(--color-surface);
+    border-bottom: 1px solid var(--color-border);
+    flex-shrink: 0;
+  }
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+  }
+  .logo svg { color: var(--color-primary); }
+  .logo-text { font-size: var(--text-sm); font-weight: 700; letter-spacing: -0.02em; }
+  .logo-sub { font-size: var(--text-xs); color: var(--color-text-muted); font-weight: 400; }
+
+  #connect-btn {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-4);
+    border-radius: var(--radius-full);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    border: 1.5px solid var(--color-primary);
+    color: var(--color-primary);
+    background: transparent;
+    cursor: pointer;
+    transition: background var(--transition), color var(--transition);
+    -webkit-tap-highlight-color: transparent;
+  }
+  #connect-btn:hover, #connect-btn:active { background: var(--color-primary-bg); }
+  #connect-btn.connected { border-color: var(--color-success); color: var(--color-success); }
+  #connect-btn.connected:hover, #connect-btn.connected:active { background: var(--color-success-bg); }
+  #connect-btn.connecting { border-color: var(--color-text-muted); color: var(--color-text-muted); animation: pulse 1.2s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+
+  /* ── STATUS BAR ── */
+  #status-bar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-6);
+    font-size: var(--text-xs);
+    color: var(--color-text-muted);
+    background: var(--color-surface);
+    border-bottom: 1px solid var(--color-border);
+    flex-shrink: 0;
+  }
+  .status-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--color-text-faint);
+    transition: background var(--transition);
+  }
+  .status-dot.connected { background: var(--color-success); box-shadow: 0 0 6px var(--color-success); }
+  .status-dot.connecting { background: var(--color-primary); animation: pulse 1s infinite; }
+
+  /* ── MAIN ── */
+  main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-6) var(--space-4);
+    gap: var(--space-8);
+    overflow: hidden;
+  }
+
+  /* ── SPEED DISPLAY ── */
+  .speed-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-6);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-xl);
+    padding: var(--space-3) var(--space-6);
+    box-shadow: var(--shadow-sm);
+  }
+  .speed-label { font-size: var(--text-xs); color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.1em; }
+  .speed-value {
+    font-size: var(--text-lg);
+    font-weight: 700;
+    color: var(--color-primary);
+    font-variant-numeric: tabular-nums;
+    min-width: 3ch;
+    text-align: center;
+  }
+  input[type=range] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 140px;
+    height: 6px;
+    background: var(--color-surface-offset);
+    border-radius: var(--radius-full);
+    outline: none;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    background: var(--color-primary);
+    cursor: pointer;
+    box-shadow: 0 0 6px oklch(0.7 0.12 192 / 0.5);
+  }
+
+  /* ── D-PAD ── */
+  .dpad {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    gap: var(--space-2);
+    width: min(280px, 75vw);
+    aspect-ratio: 1;
+  }
+  .dpad-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    cursor: pointer;
+    transition: background var(--transition), transform var(--transition), box-shadow var(--transition);
+    box-shadow: var(--shadow-btn);
+    -webkit-tap-highlight-color: transparent;
+    touch-action: none;
+  }
+  .dpad-btn svg { color: var(--color-text-muted); transition: color var(--transition); pointer-events: none; }
+  .dpad-btn:hover { background: var(--color-surface-offset); }
+  .dpad-btn.active, .dpad-btn:active {
+    background: var(--color-primary-bg);
+    border-color: var(--color-primary);
+    transform: scale(0.94);
+    box-shadow: 0 0 12px oklch(0.7 0.12 192 / 0.3);
+  }
+  .dpad-btn.active svg, .dpad-btn:active svg { color: var(--color-primary); }
+  .dpad-center {
+    background: var(--color-surface-offset) !important;
+    border-color: transparent !important;
+    pointer-events: none;
+  }
+  .stop-btn {
+    background: var(--color-danger-bg) !important;
+    border-color: var(--color-danger) !important;
+    cursor: pointer !important;
+    pointer-events: all !important;
+  }
+  .stop-btn svg { color: var(--color-danger) !important; }
+  .stop-btn:active { transform: scale(0.94) !important; box-shadow: 0 0 12px oklch(0.6 0.18 20 / 0.3) !important; }
+  .dpad-empty { background: transparent !important; border: none !important; box-shadow: none !important; pointer-events: none; }
+
+  /* ── DIAGONAL BUTTONS ── */
+  .diag-row {
+    display: flex;
+    gap: var(--space-4);
+  }
+  .diag-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-1);
+    padding: var(--space-3) var(--space-5);
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    cursor: pointer;
+    font-size: var(--text-xs);
+    color: var(--color-text-muted);
+    font-weight: 500;
+    transition: background var(--transition), border-color var(--transition), transform var(--transition);
+    -webkit-tap-highlight-color: transparent;
+    touch-action: none;
+  }
+  .diag-btn svg { color: var(--color-text-muted); transition: color var(--transition); pointer-events: none; }
+  .diag-btn:hover { background: var(--color-surface-offset); }
+  .diag-btn.active, .diag-btn:active {
+    background: var(--color-primary-bg);
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+    transform: scale(0.94);
+  }
+  .diag-btn.active svg { color: var(--color-primary); }
+
+  /* ── BLE NOT SUPPORTED ── */
+  #ble-warning {
+    display: none;
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-danger-bg);
+    border: 1px solid var(--color-danger);
+    border-radius: var(--radius-lg);
+    font-size: var(--text-xs);
+    color: var(--color-danger);
+    text-align: center;
+    max-width: 320px;
+  }
+
+  /* ── DISABLED OVERLAY ── */
+  .controls-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-6);
+    position: relative;
+  }
+  .controls-wrap.disabled::after {
+    content: 'Connect to car first';
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--color-text-muted);
+    background: oklch(0.1 0 0 / 0.6);
+    border-radius: var(--radius-xl);
+    backdrop-filter: blur(2px);
+    pointer-events: none;
+  }
+
+  /* ── COMMAND LOG ── */
+  #cmd-log {
+    font-size: var(--text-xs);
+    color: var(--color-text-faint);
+    letter-spacing: 0.05em;
+    height: 1.5em;
+    text-align: center;
+  }
+
+  @media (min-height: 700px) {
+    main { gap: var(--space-10); }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <!-- Car SVG logo -->
+    <svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-label="ESP32 Car" xmlns="http://www.w3.org/2000/svg">
+      <rect x="4" y="10" width="20" height="10" rx="3" fill="currentColor" opacity="0.15"/>
+      <rect x="4" y="10" width="20" height="10" rx="3" stroke="currentColor" stroke-width="1.5"/>
+      <path d="M7 10L9 5h10l2 5" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+      <circle cx="8" cy="21" r="2.5" fill="currentColor" opacity="0.2" stroke="currentColor" stroke-width="1.5"/>
+      <circle cx="20" cy="21" r="2.5" fill="currentColor" opacity="0.2" stroke="currentColor" stroke-width="1.5"/>
+      <rect x="11" y="7" width="6" height="3" rx="1" fill="currentColor" opacity="0.4"/>
+    </svg>
+    <div>
+      <div class="logo-text">ESP32 Car</div>
+      <div class="logo-sub">BLE Controller</div>
+    </div>
+  </div>
+  <button id="connect-btn" aria-label="Connect to car via Bluetooth">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <polyline points="6.5 6.5 17.5 17.5"/><polyline points="17.5 6.5 6.5 17.5"/>
+      <path d="M12 2l3.5 3.5L12 9V2zM12 22l3.5-3.5L12 15v7z"/>
+    </svg>
+    <span id="connect-text">Connect</span>
+  </button>
+</header>
+
+<div id="status-bar">
+  <div class="status-dot" id="status-dot"></div>
+  <span id="status-text">Not connected — tap Connect to pair</span>
+</div>
+
+<main>
+  <div id="ble-warning">
+    Web Bluetooth is not supported in this browser.<br>
+    Use <strong>Chrome on Android</strong> or a BLE-capable browser.
+  </div>
+
+  <div class="controls-wrap disabled" id="controls-wrap">
+
+    <!-- Speed slider -->
+    <div class="speed-row">
+      <div>
+        <div class="speed-label">Speed</div>
+        <div class="speed-value" id="speed-display">75%</div>
+      </div>
+      <input type="range" id="speed-slider" min="1" max="100" value="75" aria-label="Motor speed percentage">
+    </div>
+
+    <!-- D-Pad -->
+    <div class="dpad" id="dpad">
+      <!-- Row 1 -->
+      <div class="dpad-btn dpad-empty" aria-hidden="true"></div>
+      <button class="dpad-btn" id="btn-F" data-cmd="F" aria-label="Forward" touch-action="none">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
+      </button>
+      <div class="dpad-btn dpad-empty" aria-hidden="true"></div>
+
+      <!-- Row 2 -->
+      <button class="dpad-btn" id="btn-L" data-cmd="L" aria-label="Steer left">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <button class="dpad-btn stop-btn" id="btn-S" data-cmd="S" aria-label="Stop">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>
+      </button>
+      <button class="dpad-btn" id="btn-R" data-cmd="R" aria-label="Steer right">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+      </button>
+
+      <!-- Row 3 -->
+      <div class="dpad-btn dpad-empty" aria-hidden="true"></div>
+      <button class="dpad-btn" id="btn-B" data-cmd="B" aria-label="Backward">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="dpad-btn dpad-empty" aria-hidden="true"></div>
+    </div>
+
+    <!-- Diagonal buttons -->
+    <div class="diag-row">
+      <button class="diag-btn" id="btn-G" data-cmd="G" aria-label="Forward left">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 7 7 7 7 17"/><polyline points="17 17 7 7"/></svg>
+        <span>Fwd-L</span>
+      </button>
+      <button class="diag-btn" id="btn-I" data-cmd="I" aria-label="Forward right">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 7 17 7 17 17"/><polyline points="7 17 17 7"/></svg>
+        <span>Fwd-R</span>
+      </button>
+      <button class="diag-btn" id="btn-H" data-cmd="H" aria-label="Backward left">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 17 7 17 7 7"/><polyline points="17 7 7 17"/></svg>
+        <span>Bck-L</span>
+      </button>
+      <button class="diag-btn" id="btn-J" data-cmd="J" aria-label="Backward right">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 17 17 17 17 7"/><polyline points="7 7 17 17"/></svg>
+        <span>Bck-R</span>
+      </button>
+    </div>
+
+  </div><!-- end controls-wrap -->
+
+  <div id="cmd-log">—</div>
+</main>
+
+<script>
+// BLE UUIDs matching the ESP32 sketch
+const SERVICE_UUID = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+const RX_UUID      = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
+
+let bleDevice = null;
+let rxChar    = null;
+let connected = false;
+
+const connectBtn    = document.getElementById('connect-btn');
+const connectText   = document.getElementById('connect-text');
+const statusDot     = document.getElementById('status-dot');
+const statusText    = document.getElementById('status-text');
+const controlsWrap  = document.getElementById('controls-wrap');
+const cmdLog        = document.getElementById('cmd-log');
+const bleWarning    = document.getElementById('ble-warning');
+const speedSlider   = document.getElementById('speed-slider');
+const speedDisplay  = document.getElementById('speed-display');
+
+// Check BLE support
+if (!navigator.bluetooth) {
+  bleWarning.style.display = 'block';
+  connectBtn.disabled = true;
+  connectBtn.style.opacity = '0.4';
+}
+
+function setStatus(state, msg) {
+  statusDot.className = 'status-dot ' + state;
+  statusText.textContent = msg;
+}
+
+function setConnected(val) {
+  connected = val;
+  if (val) {
+    connectBtn.className = 'connected';
+    connectText.textContent = 'Disconnect';
+    connectBtn.querySelector('svg').innerHTML = '<path d="M18.36 5.64a9 9 0 1 1-12.72 12.72A9 9 0 0 1 18.36 5.64z" stroke="currentColor" stroke-width="2.5"/><line x1="9" y1="15" x2="15" y2="9" stroke="currentColor" stroke-width="2.5"/>';
+    controlsWrap.classList.remove('disabled');
+    setStatus('connected', 'Connected to ESP32_Car');
+  } else {
+    connectBtn.className = '';
+    connectText.textContent = 'Connect';
+    connectBtn.querySelector('svg').innerHTML = '<polyline points="6.5 6.5 17.5 17.5"/><polyline points="17.5 6.5 6.5 17.5"/><path d="M12 2l3.5 3.5L12 9V2zM12 22l3.5-3.5L12 15v7z"/>';
+    controlsWrap.classList.add('disabled');
+    setStatus('', 'Not connected — tap Connect to pair');
+    rxChar = null;
+  }
+}
+
+connectBtn.addEventListener('click', async () => {
+  if (connected && bleDevice) {
+    bleDevice.gatt.disconnect();
+    return;
+  }
+  if (!navigator.bluetooth) return;
+
+  try {
+    connectBtn.className = 'connecting';
+    connectText.textContent = 'Scanning…';
+    setStatus('connecting', 'Scanning for ESP32_Car…');
+
+    bleDevice = await navigator.bluetooth.requestDevice({
+      filters: [{ name: 'ESP32_Car' }],
+      optionalServices: [SERVICE_UUID]
+    });
+
+    bleDevice.addEventListener('gattserverdisconnected', () => setConnected(false));
+
+    connectText.textContent = 'Connecting…';
+    setStatus('connecting', 'Connecting…');
+
+    const server  = await bleDevice.gatt.connect();
+    const service = await server.getPrimaryService(SERVICE_UUID);
+    rxChar        = await service.getCharacteristic(RX_UUID);
+
+    setConnected(true);
+  } catch (e) {
+    setConnected(false);
+    if (e.name !== 'NotFoundError') setStatus('', 'Failed: ' + e.message);
+    else setStatus('', 'Scan cancelled.');
+  }
+});
+
+async function sendCmd(cmd) {
+  if (!connected || !rxChar) return;
+  try {
+    const encoder = new TextEncoder();
+    await rxChar.writeValue(encoder.encode(cmd));
+    cmdLog.textContent = 'Sent: ' + cmdName(cmd);
+  } catch(e) {
+    cmdLog.textContent = 'Error: ' + e.message;
+  }
+}
+
+function cmdName(c) {
+  const names = {F:'Forward',B:'Backward',L:'Steer Left',R:'Steer Right',S:'Stop',G:'Fwd+Left',I:'Fwd+Right',H:'Bck+Left',J:'Bck+Right'};
+  return names[c] || c;
+}
+
+// Button press/release handlers (send on press, stop on release for move cmds)
+const moveCommands = new Set(['F','B','L','R','G','I','H','J']);
+
+function attachBtn(el) {
+  const cmd = el.dataset.cmd;
+  if (!cmd) return;
+
+  const press = (e) => {
+    e.preventDefault();
+    if (!connected) return;
+    el.classList.add('active');
+    sendCmd(cmd);
+  };
+  const release = (e) => {
+    e.preventDefault();
+    el.classList.remove('active');
+    if (cmd !== 'S' && connected) sendCmd('S');
+  };
+
+  el.addEventListener('mousedown', press);
+  el.addEventListener('mouseup', release);
+  el.addEventListener('mouseleave', (e) => { if (el.classList.contains('active')) release(e); });
+  el.addEventListener('touchstart', press, { passive: false });
+  el.addEventListener('touchend', release, { passive: false });
+  el.addEventListener('touchcancel', release, { passive: false });
+}
+
+document.querySelectorAll('[data-cmd]').forEach(attachBtn);
+
+// Speed slider
+speedSlider.addEventListener('input', () => {
+  speedDisplay.textContent = speedSlider.value + '%';
+  // Future: send speed command to ESP32 e.g. 'V' + speedSlider.value
+});
+
+// Keyboard support
+const keyMap = {
+  ArrowUp: 'F', ArrowDown: 'B', ArrowLeft: 'L', ArrowRight: 'R',
+  w: 'F', s: 'B', a: 'L', d: 'R', ' ': 'S'
+};
+const keysHeld = new Set();
+document.addEventListener('keydown', (e) => {
+  const cmd = keyMap[e.key];
+  if (!cmd || keysHeld.has(e.key)) return;
+  keysHeld.add(e.key);
+  const btn = document.getElementById('btn-' + cmd);
+  if (btn) btn.classList.add('active');
+  sendCmd(cmd);
+  e.preventDefault();
+});
+document.addEventListener('keyup', (e) => {
+  const cmd = keyMap[e.key];
+  if (!cmd) return;
+  keysHeld.delete(e.key);
+  const btn = document.getElementById('btn-' + cmd);
+  if (btn) btn.classList.remove('active');
+  if (cmd !== 'S') sendCmd('S');
+  e.preventDefault();
+});
+</script>
+</body>
+</html>
